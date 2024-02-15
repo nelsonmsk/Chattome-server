@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 
-const userCtrl = require('../controllers/user');
-const authCtrl = require('../controllers/auth');
+const userCtrl = require('./../controllers/user');
+const authCtrl = require('./../controllers/auth');
 
 router.route('/api/users')
 	.get(userCtrl.list)
@@ -21,10 +21,10 @@ router.route('/api/users/photo/:userId')
 router.route('/api/users/defaultphoto')
 	.get(userCtrl.defaultPhoto);
 
-router.route('/api/users/follow')
+router.route('/api/users/follow/:userId')
 	.put(authCtrl.requireSignin, userCtrl.addFollowing, userCtrl.addFollower);
 
-router.route('/api/users/unfollow')
+router.route('/api/users/unfollow/:userId')
 	.put(authCtrl.requireSignin, userCtrl.removeFollowing, userCtrl.removeFollower);
 
 router.route('/api/users/findpeople/:userId')

@@ -12,15 +12,20 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 	/* create new user. */
 	const create = async (req, res) => {
 		const user = new User(req.body);
-		try {
-			await user.save();
-			return res.status(200).json({
-				message: "Successfully signed up!"
-			});
-		} catch (err) {
-			return res.status(400).json({
-				error: errorHandler.getErrorMessage(err)
-			});
+		let existing_user = await User.findOne({ "email": req.body.email });		
+		if (existing_user){
+			return res.status(401).json({ error: "User already exists" });
+		}else{
+			try {	
+				await user.save();
+				return res.status(200).json({
+					message: "Successfully signed up!"
+				})
+			} catch (err) {
+				return res.status(400).json({
+					error: errorHandler.getErrorMessage(err)
+				})
+			}
 		}
 	};
 	
@@ -41,15 +46,15 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 			let user = await User.findById(id)
 				.populate('following', '_id name')
 				.populate('followers', '_id name')
-				.exec();
+				.exec();	
 			if (!user)
-				return res.status('400').json({
+				return res.status(400).json({
 					error: "User not found"
 				});
 			req.profile = user;
 			next();
 		} catch (err) {
-			return res.status('400').json({
+			return res.status(400).json({
 				error: "Could not retrieve user"
 			});
 		}
@@ -57,50 +62,57 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 	
 	const read = (req, res) => {
 		req.profile.hashed_password = undefined;
-		req.profile.salt = undefined;
 		return res.json(req.profile);
 	};
 	
 	const update = async (req, res) => {
-		let form = new formidable.IncomingForm();
-		form.keepExtensions = true;
-		form.parse(req, async (err, fields, files) => {
-			if (err) {
-				return res.status(400).json({
-					error: "Photo could not be uploaded"
-				});
-			}
-			let user = req.profile;
-			user = extend(user, fields);
-			user.updated = Date.now();
-			if(files.photo){
-				user.photo.data = fs.readFileSync(files.photo.path);
-				user.photo.contentType = files.photo.type;
-			}
-			try {
-				await user.save();
-				user.hashed_password = undefined;
-				user.salt = undefined;
-				res.json(user);
-			} catch (err) {
-				return res.status(400).json({
-					error: errorHandler.getErrorMessage(err)
-				});
-			}
-		});
+			let form = new formidable.IncomingForm();			
+			form.keepExtensions = true;
+			form.parse(req, async (err, fields, files) => {
+				if (err) {
+					return res.status(400).json({
+						error: "Photo could not be uploaded"
+					});
+				}
+				let user = req.profile;
+				let data = [];
+				if(fields){
+					if(fields.name) data['name'] = fields.name.toLocaleString();
+					if(fields.about) data['about'] = fields.about.toLocaleString();	
+					if(fields.email) data['email'] = fields.email.toLocaleString();
+					if(fields.password) data['password'] = fields.password.toLocaleString();
+					if(fields.following) data['following'] = fields.following.toLocaleString();	
+					if(fields.followers) data['followers'] = fields.followers.toLocaleString();						
+				}
+				user = extend(user, data);
+				user.updated = Date.now();
+				if(files.photo){
+					user.photo.data = fs.readFileSync(files.photo.path);
+					user.photo.contentType = files.photo.type;
+				}
+				try {
+					await user.save();
+					user.hashed_password = undefined;
+					res.json(user);
+				} catch (err) {
+					return res.status(400).json({
+						error: errorHandler.getErrorMessage(err)
+					});
+				}
+			});
 	};
 	
 	const remove = async (req, res) => {
 		try {
-			let user = req.profile;
-			let deletedUser = await user.remove();
-			deletedUser.hashed_password = undefined;
-			deletedUser.salt = undefined;
-			res.json(deletedUser);
+			let id = req.profile._id;				
+			await User.findByIdAndDelete(id);
+			return res.status(200).json({
+					message: "Successfully deleted user:" + id.toLocaleString()
+				})
 		} catch (err) {
 			return res.status(400).json({
 				error: errorHandler.getErrorMessage(err)
-			});
+			})
 		}
 	};
 	
@@ -117,10 +129,26 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 	};
 
 	const addFollowing = async (req, res, next) => {
-		try{
-			await User.findByIdAndUpdate(req.body.userId,
-				{$push: {following: req.body.followId}});
-			next();
+		try{	
+			let stats = false;
+			let user = await User.findById(req.body.userId);			
+			if(user){
+				let folArray = user.following;
+				folArray.map((val)=>{
+					if(val.toLocaleString() == req.body.followId){
+						return stats = true;
+					}
+				});			
+				if(stats == true){
+					return res.status(400).json({
+						error: "Already following this user "
+					});					
+				}else{
+					await User.findByIdAndUpdate(req.body.userId,
+						{$push: {following: req.body.followId}});
+					next();
+				}
+			}
 		}catch(err){
 			return res.status(400).json({
 				error: errorHandler.getErrorMessage(err)
@@ -137,7 +165,6 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 								.populate('followers', '_id name')
 								.exec();
 			result.hashed_password = undefined;
-			result.salt = undefined;
 			res.json(result);
 		}catch(err) {
 			return res.status(400).json({
@@ -148,12 +175,28 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 
 	const removeFollowing = async (req, res, next) => {
 		try{
-			await User.findByIdAndUpdate(req.body.userId,
+			let stats = false;
+			let user = await User.findById(req.body.userId);			
+			if(user){
+				let folArray = user.following;
+				folArray.map((val)=>{
+					if(val.toLocaleString() == req.body.unfollowId){
+						return stats = true;
+					}
+				});	
+				if(stats == false){
+					return res.status(400).json({
+						error: "User not found "
+					});					
+				}else{
+					await User.findByIdAndUpdate(req.body.userId,
 						{$pull: {following: req.body.unfollowId}});
-			next();
+					next();
+				}
+			}
 		}catch(err) {
 			return res.status(400).json({
-					error: errorHandler.getErrorMessage(err)
+					error: errorHandler.getErrorMessage(err) 
 			});
 		}
 	};
@@ -167,7 +210,6 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 									.populate('followers', '_id name')
 									.exec();
 			result.hashed_password = undefined;
-		 	result.salt = undefined;
 			res.json(result);
 		}catch(err){
 			return res.status(400).json({
