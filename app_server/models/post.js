@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-
 const postSchema = new mongoose.Schema({
 	text: {
 		type: String,
@@ -10,9 +9,7 @@ const postSchema = new mongoose.Schema({
 		data: Buffer,
 		contentType: String
 	},
-	postedBy: [
-		{type: mongoose.Schema.ObjectId,
-		 ref: 'User'}],	
+	postedBy: [{type: mongoose.Schema.ObjectId,ref: 'User'}],	
 	created: {
 		type: Date,
 		default: Date.now()
