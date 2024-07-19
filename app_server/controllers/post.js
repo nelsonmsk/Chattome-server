@@ -30,8 +30,8 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 			let post = new Post(data);
 			post.postedBy = req.profile;
 			if(files.photo){
-				post.photo.data = fs.readFileSync(files.photo.path);
-				post.photo.contentType = files.photo.type;
+				post.photo.data = fs.readFileSync(files.photo[0].filepath);
+				post.photo.contentType = files.photo[0].mimetype;
 			}
 			try {
 				let result = await post.save();
@@ -68,8 +68,8 @@ const profileImage = ('./../../../client/src/assets/images/profile-pic.jpg');
 	};
 
 	const photo = (req, res, next) => {
-			res.set("Content-Type", req.profile.photo.contentType);
-			return res.send(req.profile.photo.data);
+			res.set("Content-Type", req.post.photo.contentType);
+			return res.send(req.post.photo.data);
 	};
 
 	const postByID = async (req, res, next, id) => {
